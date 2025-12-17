@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kanban Board</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #e5e5e5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+
+        .input-section {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        #taskInput {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        #addTaskBtn {
+            padding: 12px 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        #addTaskBtn:hover {
+            background-color: #45a049;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .column {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            min-height: 400px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .column-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #333;
+            text-align: center;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e5e5e5;
+        }
+
+        .task-card {
+            background-color: #f9f9f9;
+            padding: 15px;
+            padding-right: 35px;
+            margin-bottom: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #4CAF50;
+            cursor: move;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+            position: relative;
+        }
+
+        .task-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+
+        .task-card.dragging {
+            opacity: 0.5;
+            transform: rotate(3deg);
+        }
+
+        .task-list {
+            min-height: 100px;
+            transition: background-color 0.2s;
+        }
+
+        .task-list.drag-over {
+            background-color: #e3f2fd;
+            border-radius: 8px;
+        }
+
+        .task-text {
+            color: #333;
+            font-size: 15px;
+            word-wrap: break-word;
+        }
+
+        .task-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .task-actions button {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .move-btn {
+            background-color: #2196F3;
+            color: white;
+        }
+
+        .move-btn:hover {
+            background-color: #0b7dda;
+        }
+
+        .delete-btn {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .delete-btn:hover {
+            background-color: #da190b;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 20px;
+            height: 20px;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 20px;
+            text-align: center;
+            padding: 0;
+            font-weight: bold;
+        }
+
+        .close-btn:hover {
+            background-color: #da190b;
+            transform: scale(1.1);
+        }
+
+        @media (max-width: 768px) {
+            .board {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Kanban Board</h1>
+
+        <div class="input-section">
+            <div class="input-group">
+                <input type="text" id="taskInput" placeholder="Введите новую задачу...">
+                <button id="addTaskBtn">Добавить</button>
+            </div>
+        </div>
+
+        <div class="board">
+            <div class="column">
+                <div class="column-title">To Do</div>
+                <div id="todo" class="task-list"></div>
+            </div>
+
+            <div class="column">
+                <div class="column-title">In Progress</div>
+                <div id="inProgress" class="task-list"></div>
+            </div>
+
+            <div class="column">
+                <div class="column-title">Done</div>
+                <div id="done" class="task-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const taskInput = document.getElementById('taskInput');
+        const addTaskBtn = document.getElementById('addTaskBtn');
+        const todoList = document.getElementById('todo');
+        const inProgressList = document.getElementById('inProgress');
+        const doneList = document.getElementById('done');
+
+        let draggedElement = null;
+
+        // Инициализация Supabase клиента
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Функции для работы с Supabase
+        async function saveTaskToSupabase(taskId, text, status, position) {
+            try {
+                const { data, error } = await supabase
+                    .from('tasks')
+                    .upsert({
+                        id: taskId,
+                        text: text,
+                        status: status,
+                        position: position
+                    });
+
+                if (error) throw error;
+            } catch (error) {
+                console.error('Error saving task:', error);
+                alert('Ошибка сохранения задачи: ' + error.message);
+            }
+        }
+
+        async function deleteTaskFromSupabase(taskId) {
+            try {
+                const { error } = await supabase
+                    .from('tasks')
+                    .delete()
+                    .eq('id', taskId);
+
+                if (error) throw error;
+            } catch (error) {
+                console.error('Error deleting task:', error);
+                alert('Ошибка удаления задачи: ' + error.message);
+            }
+        }
+
+        async function syncAllTasks() {
+            try {
+                // Удаляем все задачи из БД
+                await supabase.from('tasks').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+                // Сохраняем все текущие задачи
+                const allTasks = [];
+
+                todoList.querySelectorAll('.task-card').forEach((card, index) => {
+                    allTasks.push({
+                        id: card.dataset.id,
+                        text: card.querySelector('.task-text').textContent,
+                        status: 'todo',
+                        position: index
+                    });
+                });
+
+                inProgressList.querySelectorAll('.task-card').forEach((card, index) => {
+                    allTasks.push({
+                        id: card.dataset.id,
+                        text: card.querySelector('.task-text').textContent,
+                        status: 'inProgress',
+                        position: index
+                    });
+                });
+
+                doneList.querySelectorAll('.task-card').forEach((card, index) => {
+                    allTasks.push({
+                        id: card.dataset.id,
+                        text: card.querySelector('.task-text').textContent,
+                        status: 'done',
+                        position: index
+                    });
+                });
+
+                if (allTasks.length > 0) {
+                    const { error } = await supabase.from('tasks').insert(allTasks);
+                    if (error) throw error;
+                }
+            } catch (error) {
+                console.error('Error syncing tasks:', error);
+            }
+        }
+
+        async function loadTasks() {
+            try {
+                const { data: tasks, error } = await supabase
+                    .from('tasks')
+                    .select('*')
+                    .order('position', { ascending: true });
+
+                if (error) throw error;
+
+                if (!tasks || tasks.length === 0) {
+                    // Загружаем примеры задач если БД пустая
+                    await loadExampleTasks();
+                    return;
+                }
+
+                // Группируем задачи по статусу
+                tasks.forEach(task => {
+                    const taskCard = createTaskCard(task.text, task.id);
+
+                    if (task.status === 'todo') {
+                        todoList.appendChild(taskCard);
+                    } else if (task.status === 'inProgress') {
+                        inProgressList.appendChild(taskCard);
+                    } else if (task.status === 'done') {
+                        doneList.appendChild(taskCard);
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading tasks:', error);
+                alert('Ошибка загрузки задач: ' + error.message);
+            }
+        }
+
+        async function loadExampleTasks() {
+            const exampleTasks = [
+                { text: 'Создать дизайн макет', status: 'todo', position: 0 },
+                { text: 'Написать документацию', status: 'todo', position: 1 },
+                { text: 'Провести код-ревью', status: 'todo', position: 2 }
+            ];
+
+            for (const task of exampleTasks) {
+                const taskId = crypto.randomUUID();
+                const taskCard = createTaskCard(task.text, taskId);
+                todoList.appendChild(taskCard);
+                await saveTaskToSupabase(taskId, task.text, task.status, task.position);
+            }
+        }
+
+        function setupDragAndDrop(taskCard) {
+            taskCard.addEventListener('dragstart', handleDragStart);
+            taskCard.addEventListener('dragend', handleDragEnd);
+        }
+
+        function handleDragStart(e) {
+            draggedElement = this;
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', '');
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+            document.querySelectorAll('.task-list').forEach(list => {
+                list.classList.remove('drag-over');
+            });
+            syncAllTasks();
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleDragEnter(e) {
+            this.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            if (e.target.classList.contains('task-list')) {
+                this.classList.remove('drag-over');
+            }
+        }
+
+        function handleDrop(e) {
+            if (e.stopPropagation) {
+                e.stopPropagation();
+            }
+
+            if (draggedElement !== this) {
+                this.appendChild(draggedElement);
+            }
+
+            return false;
+        }
+
+        function createTaskCard(text, id = null) {
+            const taskCard = document.createElement('div');
+            taskCard.className = 'task-card';
+            taskCard.dataset.id = id !== null ? id : crypto.randomUUID();
+            taskCard.draggable = true;
+
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'close-btn';
+            closeBtn.textContent = '×';
+            closeBtn.onclick = async (e) => {
+                e.stopPropagation();
+                await deleteTaskFromSupabase(taskCard.dataset.id);
+                taskCard.remove();
+            };
+
+            const taskText = document.createElement('div');
+            taskText.className = 'task-text';
+            taskText.textContent = text;
+
+            const taskActions = document.createElement('div');
+            taskActions.className = 'task-actions';
+
+            const moveBtn = document.createElement('button');
+            moveBtn.className = 'move-btn';
+            moveBtn.textContent = 'Переместить →';
+            moveBtn.onclick = async () => {
+                moveTask(taskCard);
+                await syncAllTasks();
+            };
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.textContent = 'Удалить';
+            deleteBtn.onclick = async () => {
+                await deleteTaskFromSupabase(taskCard.dataset.id);
+                taskCard.remove();
+            };
+
+            taskActions.appendChild(moveBtn);
+            taskActions.appendChild(deleteBtn);
+
+            taskCard.appendChild(closeBtn);
+            taskCard.appendChild(taskText);
+            taskCard.appendChild(taskActions);
+
+            setupDragAndDrop(taskCard);
+
+            return taskCard;
+        }
+
+        async function addTask() {
+            const text = taskInput.value.trim();
+            if (text === '') {
+                alert('Введите текст задачи!');
+                return;
+            }
+
+            const taskId = crypto.randomUUID();
+            const taskCard = createTaskCard(text, taskId);
+            todoList.appendChild(taskCard);
+            taskInput.value = '';
+            taskInput.focus();
+
+            const position = todoList.querySelectorAll('.task-card').length - 1;
+            await saveTaskToSupabase(taskId, text, 'todo', position);
+        }
+
+        function moveTask(taskCard) {
+            const currentParent = taskCard.parentElement;
+
+            if (currentParent === todoList) {
+                inProgressList.appendChild(taskCard);
+            } else if (currentParent === inProgressList) {
+                doneList.appendChild(taskCard);
+                const moveBtn = taskCard.querySelector('.move-btn');
+                moveBtn.style.display = 'none';
+            } else if (currentParent === doneList) {
+                return;
+            }
+        }
+
+        addTaskBtn.addEventListener('click', addTask);
+
+        taskInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                addTask();
+            }
+        });
+
+        // Настройка drag and drop для колонок
+        const taskLists = [todoList, inProgressList, doneList];
+        taskLists.forEach(list => {
+            list.addEventListener('dragover', handleDragOver);
+            list.addEventListener('dragenter', handleDragEnter);
+            list.addEventListener('dragleave', handleDragLeave);
+            list.addEventListener('drop', handleDrop);
+        });
+
+        // Загружаем задачи при загрузке страницы
+        window.addEventListener('DOMContentLoaded', async () => {
+            await loadTasks();
+        });
+    </script>
+</body>
+</html>
