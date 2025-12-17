@@ -434,8 +434,15 @@
                 e.stopPropagation();
             }
 
-            if (draggedElement !== this) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+
+            console.log('Drop event - Target:', this.id, 'Dragged element:', draggedElement?.dataset.id);
+
+            if (draggedElement && draggedElement !== this) {
                 this.appendChild(draggedElement);
+                console.log('Element moved to:', this.id);
             }
 
             return false;
