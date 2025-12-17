@@ -325,6 +325,13 @@
                     if (error) throw error;
                     console.log('Sync completed successfully');
                 }
+
+                // Переподключаем drag and drop обработчики для всех карточек
+                document.querySelectorAll('.task-card').forEach(card => {
+                    setupDragAndDrop(card);
+                });
+                console.log('Drag and drop handlers reattached');
+
             } catch (error) {
                 console.error('Error syncing tasks:', error);
             }
@@ -379,8 +386,16 @@
         }
 
         function setupDragAndDrop(taskCard) {
+            // Удаляем старые обработчики если они есть
+            taskCard.removeEventListener('dragstart', handleDragStart);
+            taskCard.removeEventListener('dragend', handleDragEnd);
+
+            // Добавляем новые обработчики
             taskCard.addEventListener('dragstart', handleDragStart);
             taskCard.addEventListener('dragend', handleDragEnd);
+
+            // Убеждаемся что draggable установлен
+            taskCard.draggable = true;
         }
 
         function handleDragStart(e) {
