@@ -272,7 +272,12 @@
                 const allTasks = [];
 
                 todoList.querySelectorAll('.task-card').forEach((card, index) => {
-                    console.log('Todo task:', card.dataset.id, card.draggable);
+                    console.log('Todo task:', card.dataset.id, 'draggable:', card.draggable, 'hasListeners:', card.ondragstart !== null);
+                    // Убеждаемся что draggable остается true
+                    if (!card.draggable) {
+                        console.warn('Card lost draggable attribute, restoring...', card.dataset.id);
+                        card.draggable = true;
+                    }
                     allTasks.push({
                         id: card.dataset.id,
                         text: card.querySelector('.task-text').textContent,
@@ -282,7 +287,11 @@
                 });
 
                 inProgressList.querySelectorAll('.task-card').forEach((card, index) => {
-                    console.log('InProgress task:', card.dataset.id, card.draggable);
+                    console.log('InProgress task:', card.dataset.id, 'draggable:', card.draggable, 'hasListeners:', card.ondragstart !== null);
+                    if (!card.draggable) {
+                        console.warn('Card lost draggable attribute, restoring...', card.dataset.id);
+                        card.draggable = true;
+                    }
                     allTasks.push({
                         id: card.dataset.id,
                         text: card.querySelector('.task-text').textContent,
@@ -292,7 +301,11 @@
                 });
 
                 doneList.querySelectorAll('.task-card').forEach((card, index) => {
-                    console.log('Done task:', card.dataset.id, card.draggable);
+                    console.log('Done task:', card.dataset.id, 'draggable:', card.draggable, 'hasListeners:', card.ondragstart !== null);
+                    if (!card.draggable) {
+                        console.warn('Card lost draggable attribute, restoring...', card.dataset.id);
+                        card.draggable = true;
+                    }
                     allTasks.push({
                         id: card.dataset.id,
                         text: card.querySelector('.task-text').textContent,
