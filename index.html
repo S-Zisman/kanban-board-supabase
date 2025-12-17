@@ -267,10 +267,7 @@
 
         async function syncAllTasks() {
             try {
-                // Удаляем все задачи из БД
-                await supabase.from('tasks').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-
-                // Сохраняем все текущие задачи
+                // Собираем все текущие задачи
                 const allTasks = [];
 
                 todoList.querySelectorAll('.task-card').forEach((card, index) => {
@@ -300,8 +297,12 @@
                     });
                 });
 
+                // Используем upsert вместо delete + insert
                 if (allTasks.length > 0) {
-                    const { error } = await supabase.from('tasks').insert(allTasks);
+                    const { error } = await supabase
+                        .from('tasks')
+                        .upsert(allTasks, { onConflict: 'id' });
+
                     if (error) throw error;
                 }
             } catch (error) {
