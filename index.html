@@ -93,7 +93,6 @@
         .task-card {
             background-color: #f9f9f9;
             padding: 15px;
-            padding-right: 35px;
             margin-bottom: 12px;
             border-radius: 6px;
             border-left: 4px solid #4CAF50;
@@ -127,61 +126,7 @@
             color: #333;
             font-size: 15px;
             word-wrap: break-word;
-        }
-
-        .task-actions {
-            margin-top: 10px;
-            display: flex;
-            gap: 8px;
-        }
-
-        .task-actions button {
-            padding: 5px 10px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-
-        .move-btn {
-            background-color: #2196F3;
-            color: white;
-        }
-
-        .move-btn:hover {
-            background-color: #0b7dda;
-        }
-
-        .delete-btn {
-            background-color: #f44336;
-            color: white;
-        }
-
-        .delete-btn:hover {
-            background-color: #da190b;
-        }
-
-        .close-btn {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            width: 20px;
-            height: 20px;
-            background-color: #f44336;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 14px;
-            line-height: 20px;
-            text-align: center;
-            padding: 0;
-            font-weight: bold;
-        }
-
-        .close-btn:hover {
-            background-color: #da190b;
-            transform: scale(1.1);
+            user-select: none;
         }
 
         @media (max-width: 768px) {
@@ -228,6 +173,7 @@
         const doneList = document.getElementById('done');
 
         let draggedElement = null;
+        let isSyncing = false;
 
         // Инициализация Supabase клиента
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -267,17 +213,10 @@
 
         async function syncAllTasks() {
             try {
-                console.log('Starting sync...');
-                // Собираем все текущие задачи
+                isSyncing = true;
                 const allTasks = [];
 
                 todoList.querySelectorAll('.task-card').forEach((card, index) => {
-                    console.log('Todo task:', card.dataset.id, 'draggable:', card.draggable, 'hasListeners:', card.ondragstart !== null);
-                    // Убеждаемся что draggable остается true
-                    if (!card.draggable) {
-                        console.warn('Card lost draggable attribute, restoring...', card.dataset.id);
-                        card.draggable = true;
-                    }
                     allTasks.push({
                         id: card.dataset.id,
                         text: card.querySelector('.task-text').textContent,
@@ -287,11 +226,6 @@
                 });
 
                 inProgressList.querySelectorAll('.task-card').forEach((card, index) => {
-                    console.log('InProgress task:', card.dataset.id, 'draggable:', card.draggable, 'hasListeners:', card.ondragstart !== null);
-                    if (!card.draggable) {
-                        console.warn('Card lost draggable attribute, restoring...', card.dataset.id);
-                        card.draggable = true;
-                    }
                     allTasks.push({
                         id: card.dataset.id,
                         text: card.querySelector('.task-text').textContent,
@@ -301,11 +235,6 @@
                 });
 
                 doneList.querySelectorAll('.task-card').forEach((card, index) => {
-                    console.log('Done task:', card.dataset.id, 'draggable:', card.draggable, 'hasListeners:', card.ondragstart !== null);
-                    if (!card.draggable) {
-                        console.warn('Card lost draggable attribute, restoring...', card.dataset.id);
-                        card.draggable = true;
-                    }
                     allTasks.push({
                         id: card.dataset.id,
                         text: card.querySelector('.task-text').textContent,
@@ -314,26 +243,18 @@
                     });
                 });
 
-                console.log('Syncing tasks:', allTasks);
-
-                // Используем upsert вместо delete + insert
                 if (allTasks.length > 0) {
                     const { error } = await supabase
                         .from('tasks')
                         .upsert(allTasks, { onConflict: 'id' });
 
                     if (error) throw error;
-                    console.log('Sync completed successfully');
                 }
-
-                // Переподключаем drag and drop обработчики для всех карточек
-                document.querySelectorAll('.task-card').forEach(card => {
-                    setupDragAndDrop(card);
-                });
-                console.log('Drag and drop handlers reattached');
 
             } catch (error) {
                 console.error('Error syncing tasks:', error);
+            } finally {
+                isSyncing = false;
             }
         }
 
@@ -386,40 +307,35 @@
         }
 
         function setupDragAndDrop(taskCard) {
-            // Используем ondragstart/ondragend вместо addEventListener
-            // Это гарантирует что обработчики не потеряются
             taskCard.ondragstart = function(e) {
+                if (isSyncing) {
+                    e.preventDefault();
+                    return false;
+                }
                 draggedElement = taskCard;
                 taskCard.classList.add('dragging');
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', '');
-                console.log('Drag started:', taskCard.dataset.id);
             };
 
-            taskCard.ondragend = async function(e) {
+            taskCard.ondragend = function(e) {
                 taskCard.classList.remove('dragging');
                 document.querySelectorAll('.task-list').forEach(list => {
                     list.classList.remove('drag-over');
                 });
-                console.log('Drag ended:', taskCard.dataset.id);
-                await syncAllTasks();
             };
 
-            // Убеждаемся что draggable установлен
             taskCard.draggable = true;
-
-            console.log('Setup drag and drop for:', taskCard.dataset.id, 'ondragstart:', taskCard.ondragstart !== null);
         }
 
         function handleDragOver(e) {
-            if (e.preventDefault) {
-                e.preventDefault();
-            }
+            e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
             return false;
         }
 
         function handleDragEnter(e) {
+            e.preventDefault();
             this.classList.add('drag-over');
         }
 
@@ -429,20 +345,19 @@
             }
         }
 
-        function handleDrop(e) {
-            if (e.stopPropagation) {
-                e.stopPropagation();
-            }
+        async function handleDrop(e) {
+            e.stopPropagation();
+            e.preventDefault();
 
-            if (e.preventDefault) {
-                e.preventDefault();
-            }
+            if (draggedElement) {
+                let targetList = this.classList.contains('task-list')
+                    ? this
+                    : this.closest('.task-list');
 
-            console.log('Drop event - Target:', this.id, 'Dragged element:', draggedElement?.dataset.id);
-
-            if (draggedElement && draggedElement !== this) {
-                this.appendChild(draggedElement);
-                console.log('Element moved to:', this.id);
+                if (targetList && draggedElement.parentElement !== targetList) {
+                    targetList.appendChild(draggedElement);
+                    await syncAllTasks();
+                }
             }
 
             return false;
@@ -454,44 +369,20 @@
             taskCard.dataset.id = id !== null ? id : crypto.randomUUID();
             taskCard.draggable = true;
 
-            const closeBtn = document.createElement('button');
-            closeBtn.className = 'close-btn';
-            closeBtn.textContent = '×';
-            closeBtn.onclick = async (e) => {
-                e.stopPropagation();
-                await deleteTaskFromSupabase(taskCard.dataset.id);
-                taskCard.remove();
-            };
-
             const taskText = document.createElement('div');
             taskText.className = 'task-text';
             taskText.textContent = text;
 
-            const taskActions = document.createElement('div');
-            taskActions.className = 'task-actions';
-
-            const moveBtn = document.createElement('button');
-            moveBtn.className = 'move-btn';
-            moveBtn.textContent = 'Переместить →';
-            moveBtn.onclick = async () => {
-                moveTask(taskCard);
-                await syncAllTasks();
+            // Удаление по правой кнопке мыши
+            taskCard.oncontextmenu = async (e) => {
+                e.preventDefault();
+                if (confirm('Удалить задачу "' + text + '"?')) {
+                    await deleteTaskFromSupabase(taskCard.dataset.id);
+                    taskCard.remove();
+                }
             };
 
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'delete-btn';
-            deleteBtn.textContent = 'Удалить';
-            deleteBtn.onclick = async () => {
-                await deleteTaskFromSupabase(taskCard.dataset.id);
-                taskCard.remove();
-            };
-
-            taskActions.appendChild(moveBtn);
-            taskActions.appendChild(deleteBtn);
-
-            taskCard.appendChild(closeBtn);
             taskCard.appendChild(taskText);
-            taskCard.appendChild(taskActions);
 
             setupDragAndDrop(taskCard);
 
@@ -513,20 +404,6 @@
 
             const position = todoList.querySelectorAll('.task-card').length - 1;
             await saveTaskToSupabase(taskId, text, 'todo', position);
-        }
-
-        function moveTask(taskCard) {
-            const currentParent = taskCard.parentElement;
-
-            if (currentParent === todoList) {
-                inProgressList.appendChild(taskCard);
-            } else if (currentParent === inProgressList) {
-                doneList.appendChild(taskCard);
-                const moveBtn = taskCard.querySelector('.move-btn');
-                moveBtn.style.display = 'none';
-            } else if (currentParent === doneList) {
-                return;
-            }
         }
 
         addTaskBtn.addEventListener('click', addTask);
