@@ -267,10 +267,12 @@
 
         async function syncAllTasks() {
             try {
+                console.log('Starting sync...');
                 // Собираем все текущие задачи
                 const allTasks = [];
 
                 todoList.querySelectorAll('.task-card').forEach((card, index) => {
+                    console.log('Todo task:', card.dataset.id, card.draggable);
                     allTasks.push({
                         id: card.dataset.id,
                         text: card.querySelector('.task-text').textContent,
@@ -280,6 +282,7 @@
                 });
 
                 inProgressList.querySelectorAll('.task-card').forEach((card, index) => {
+                    console.log('InProgress task:', card.dataset.id, card.draggable);
                     allTasks.push({
                         id: card.dataset.id,
                         text: card.querySelector('.task-text').textContent,
@@ -289,6 +292,7 @@
                 });
 
                 doneList.querySelectorAll('.task-card').forEach((card, index) => {
+                    console.log('Done task:', card.dataset.id, card.draggable);
                     allTasks.push({
                         id: card.dataset.id,
                         text: card.querySelector('.task-text').textContent,
@@ -297,6 +301,8 @@
                     });
                 });
 
+                console.log('Syncing tasks:', allTasks);
+
                 // Используем upsert вместо delete + insert
                 if (allTasks.length > 0) {
                     const { error } = await supabase
@@ -304,6 +310,7 @@
                         .upsert(allTasks, { onConflict: 'id' });
 
                     if (error) throw error;
+                    console.log('Sync completed successfully');
                 }
             } catch (error) {
                 console.error('Error syncing tasks:', error);
@@ -370,12 +377,12 @@
             e.dataTransfer.setData('text/plain', '');
         }
 
-        function handleDragEnd(e) {
+        async function handleDragEnd(e) {
             this.classList.remove('dragging');
             document.querySelectorAll('.task-list').forEach(list => {
                 list.classList.remove('drag-over');
             });
-            syncAllTasks();
+            await syncAllTasks();
         }
 
         function handleDragOver(e) {
