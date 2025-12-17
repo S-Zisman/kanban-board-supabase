@@ -129,6 +129,40 @@
             user-select: none;
         }
 
+        .context-menu {
+            position: fixed;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            min-width: 180px;
+            padding: 6px 0;
+        }
+
+        .context-menu-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .context-menu-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .context-menu-item.delete {
+            color: #f44336;
+        }
+
+        .context-menu-item.delete:hover {
+            background-color: #ffebee;
+        }
+
         @media (max-width: 768px) {
             .board {
                 grid-template-columns: 1fr;
@@ -174,9 +208,83 @@
 
         let draggedElement = null;
         let isSyncing = false;
+        let contextMenu = null;
 
         // Инициализация Supabase клиента
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Функция для создания контекстного меню
+        function createContextMenu(x, y, taskCard) {
+            // Удаляем предыдущее меню если оно есть
+            if (contextMenu) {
+                contextMenu.remove();
+            }
+
+            contextMenu = document.createElement('div');
+            contextMenu.className = 'context-menu';
+            contextMenu.style.left = x + 'px';
+            contextMenu.style.top = y + 'px';
+
+            const currentParent = taskCard.parentElement;
+            const taskText = taskCard.querySelector('.task-text').textContent;
+
+            // Опция: Передвинуть влево
+            if (currentParent !== todoList) {
+                const moveLeftItem = document.createElement('div');
+                moveLeftItem.className = 'context-menu-item';
+                moveLeftItem.innerHTML = '← Передвинуть влево';
+                moveLeftItem.onclick = async () => {
+                    if (currentParent === inProgressList) {
+                        todoList.appendChild(taskCard);
+                    } else if (currentParent === doneList) {
+                        inProgressList.appendChild(taskCard);
+                    }
+                    await syncAllTasks();
+                    contextMenu.remove();
+                };
+                contextMenu.appendChild(moveLeftItem);
+            }
+
+            // Опция: Передвинуть вправо
+            if (currentParent !== doneList) {
+                const moveRightItem = document.createElement('div');
+                moveRightItem.className = 'context-menu-item';
+                moveRightItem.innerHTML = 'Передвинуть вправо →';
+                moveRightItem.onclick = async () => {
+                    if (currentParent === todoList) {
+                        inProgressList.appendChild(taskCard);
+                    } else if (currentParent === inProgressList) {
+                        doneList.appendChild(taskCard);
+                    }
+                    await syncAllTasks();
+                    contextMenu.remove();
+                };
+                contextMenu.appendChild(moveRightItem);
+            }
+
+            // Опция: Удалить
+            const deleteItem = document.createElement('div');
+            deleteItem.className = 'context-menu-item delete';
+            deleteItem.innerHTML = '🗑 Удалить';
+            deleteItem.onclick = async () => {
+                if (confirm('Удалить задачу "' + taskText + '"?')) {
+                    await deleteTaskFromSupabase(taskCard.dataset.id);
+                    taskCard.remove();
+                }
+                contextMenu.remove();
+            };
+            contextMenu.appendChild(deleteItem);
+
+            document.body.appendChild(contextMenu);
+        }
+
+        // Закрытие меню при клике вне его
+        document.addEventListener('click', () => {
+            if (contextMenu) {
+                contextMenu.remove();
+                contextMenu = null;
+            }
+        });
 
         // Функции для работы с Supabase
         async function saveTaskToSupabase(taskId, text, status, position) {
@@ -373,13 +481,11 @@
             taskText.className = 'task-text';
             taskText.textContent = text;
 
-            // Удаление по правой кнопке мыши
-            taskCard.oncontextmenu = async (e) => {
+            // Показываем контекстное меню по правой кнопке мыши
+            taskCard.oncontextmenu = (e) => {
                 e.preventDefault();
-                if (confirm('Удалить задачу "' + text + '"?')) {
-                    await deleteTaskFromSupabase(taskCard.dataset.id);
-                    taskCard.remove();
-                }
+                e.stopPropagation();
+                createContextMenu(e.pageX, e.pageY, taskCard);
             };
 
             taskCard.appendChild(taskText);
