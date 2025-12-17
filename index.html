@@ -386,40 +386,29 @@
         }
 
         function setupDragAndDrop(taskCard) {
-            // Сохраняем ссылки на bound функции если их еще нет
-            if (!taskCard._dragStartHandler) {
-                taskCard._dragStartHandler = function(e) {
-                    draggedElement = taskCard;
-                    taskCard.classList.add('dragging');
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/plain', '');
-                    console.log('Drag started:', taskCard.dataset.id);
-                };
-            }
+            // Используем ondragstart/ondragend вместо addEventListener
+            // Это гарантирует что обработчики не потеряются
+            taskCard.ondragstart = function(e) {
+                draggedElement = taskCard;
+                taskCard.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', '');
+                console.log('Drag started:', taskCard.dataset.id);
+            };
 
-            if (!taskCard._dragEndHandler) {
-                taskCard._dragEndHandler = async function(e) {
-                    taskCard.classList.remove('dragging');
-                    document.querySelectorAll('.task-list').forEach(list => {
-                        list.classList.remove('drag-over');
-                    });
-                    console.log('Drag ended:', taskCard.dataset.id);
-                    await syncAllTasks();
-                };
-            }
-
-            // Удаляем старые обработчики
-            taskCard.removeEventListener('dragstart', taskCard._dragStartHandler);
-            taskCard.removeEventListener('dragend', taskCard._dragEndHandler);
-
-            // Добавляем обработчики заново
-            taskCard.addEventListener('dragstart', taskCard._dragStartHandler);
-            taskCard.addEventListener('dragend', taskCard._dragEndHandler);
+            taskCard.ondragend = async function(e) {
+                taskCard.classList.remove('dragging');
+                document.querySelectorAll('.task-list').forEach(list => {
+                    list.classList.remove('drag-over');
+                });
+                console.log('Drag ended:', taskCard.dataset.id);
+                await syncAllTasks();
+            };
 
             // Убеждаемся что draggable установлен
             taskCard.draggable = true;
 
-            console.log('Setup drag and drop for:', taskCard.dataset.id);
+            console.log('Setup drag and drop for:', taskCard.dataset.id, 'ondragstart:', taskCard.ondragstart !== null);
         }
 
         function handleDragOver(e) {
