@@ -215,6 +215,8 @@
 
         // Функция для создания контекстного меню
         function createContextMenu(x, y, taskCard) {
+            console.log('Creating context menu at', x, y, 'for task', taskCard.dataset.id);
+
             // Удаляем предыдущее меню если оно есть
             if (contextMenu) {
                 contextMenu.remove();
@@ -227,6 +229,8 @@
 
             const currentParent = taskCard.parentElement;
             const taskText = taskCard.querySelector('.task-text').textContent;
+
+            console.log('Current parent:', currentParent.id, 'Task text:', taskText);
 
             // Опция: Передвинуть влево
             if (currentParent !== todoList) {
@@ -485,7 +489,9 @@
             taskCard.oncontextmenu = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                console.log('Context menu triggered at', e.pageX, e.pageY);
                 createContextMenu(e.pageX, e.pageY, taskCard);
+                return false;
             };
 
             taskCard.appendChild(taskText);
